@@ -14,7 +14,7 @@ composer require "huiwang/flysystem-oss" -vvv
 $accessKeyId = '';
 $accessKeySecret = '';
 $endpoint = '';
-$bucket = '',
+$bucket = '';
 
 $client = new \OSS\OssClient($accessKeyId, $accessKeySecret, $endpoint);
 
