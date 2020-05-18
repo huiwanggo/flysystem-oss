@@ -5,6 +5,7 @@ namespace Huiwang\Flysystem\Oss;
 use DateTimeInterface;
 use League\Flysystem\Adapter\AbstractAdapter;
 use League\Flysystem\Adapter\Polyfill\StreamedTrait;
+use League\Flysystem\AdapterInterface;
 use League\Flysystem\Config;
 use League\Flysystem\Util;
 use OSS\OssClient;
@@ -74,11 +75,34 @@ class OssAdapter extends AbstractAdapter
     {
         $options = $this->options;
 
+        if ($visibility = $config->get('visibility')) {
+            $acl = $this->visibilityToAcl($visibility);
+            $options[OssClient::OSS_HEADERS][OssClient::OSS_OBJECT_ACL] = $acl;
+        }
+
         if ($config->has('options')) {
             $options = array_merge($options, $config->get('options', []));
         }
 
         return $options;
+    }
+
+    protected function visibilityToAcl($visibility)
+    {
+        if (AdapterInterface::VISIBILITY_PRIVATE !== $visibility) {
+            return OssClient::OSS_ACL_TYPE_PUBLIC_READ;
+        }
+
+        return $visibility;
+    }
+
+    protected function aclToVisibility($acl)
+    {
+        if (AdapterInterface::VISIBILITY_PRIVATE !== $acl) {
+            return AdapterInterface::VISIBILITY_PUBLIC;
+        }
+
+        return $acl;
     }
 
     public function write($path, $contents, Config $config)
@@ -245,10 +269,12 @@ class OssAdapter extends AbstractAdapter
     {
         $object = $this->applyPathPrefix($path);
 
-        $visibility = $this->getClient()->getObjectAcl($this->getBucket(), $object);
-        if ('default' === $visibility) {
-            $visibility = $this->getClient()->getBucketAcl($this->getBucket());
+        $acl = $this->getClient()->getObjectAcl($this->getBucket(), $object);
+        if ('default' === $acl) {
+            $acl = $this->getClient()->getBucketAcl($this->getBucket());
         }
+
+        $visibility = $this->aclToVisibility($acl);
 
         return compact('visibility');
     }
@@ -257,7 +283,9 @@ class OssAdapter extends AbstractAdapter
     {
         $object = $this->applyPathPrefix($path);
 
-        return $this->getClient()->putObjectAcl($this->getBucket(), $object, $visibility);
+        $acl = $this->visibilityToAcl($visibility);
+
+        return $this->getClient()->putObjectAcl($this->getBucket(), $object, $acl);
     }
 
     /**
